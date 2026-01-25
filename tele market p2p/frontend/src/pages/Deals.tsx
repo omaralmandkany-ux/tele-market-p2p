@@ -26,6 +26,13 @@ export default function Deals() {
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'all' | 'advertiser' | 'owner'>('all');
 
+    // Draft modal state
+    const [showDraftModal, setShowDraftModal] = useState(false);
+    const [selectedDealId, setSelectedDealId] = useState<number | null>(null);
+    const [draftContent, setDraftContent] = useState('');
+    const [draftMediaUrl, setDraftMediaUrl] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+
     useEffect(() => {
         fetchDeals();
     }, [activeTab]);
@@ -40,6 +47,15 @@ export default function Deals() {
     };
 
     const handleAction = async (dealId: number, action: string) => {
+        // Handle submit_draft separately to show modal
+        if (action === 'submit_draft') {
+            setSelectedDealId(dealId);
+            setDraftContent('');
+            setDraftMediaUrl('');
+            setShowDraftModal(true);
+            return;
+        }
+
         let result;
         switch (action) {
             case 'accept':
@@ -72,6 +88,31 @@ export default function Deals() {
         }
     };
 
+    const handleSubmitDraft = async () => {
+        if (!selectedDealId || !draftContent.trim()) {
+            window.Telegram?.WebApp?.showAlert('Please enter the ad content');
+            return;
+        }
+
+        setSubmitting(true);
+        const result = await api.submitDraft(selectedDealId, {
+            content: draftContent.trim(),
+            media_url: draftMediaUrl.trim() || undefined,
+        });
+
+        if (result?.success) {
+            window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
+            setShowDraftModal(false);
+            setSelectedDealId(null);
+            setDraftContent('');
+            setDraftMediaUrl('');
+            fetchDeals();
+        } else {
+            window.Telegram?.WebApp?.showAlert(result?.error || 'Failed to submit draft');
+        }
+        setSubmitting(false);
+    };
+
     const getActions = (deal: DealWithDetails) => {
         const actions: { label: string; action: string; style: string }[] = [];
 
@@ -80,7 +121,13 @@ export default function Deals() {
                 actions.push({ label: 'Accept', action: 'accept', style: 'btn-success' });
                 actions.push({ label: 'Reject', action: 'reject', style: 'btn-danger' });
             }
-            if (deal.status === 'funded') {
+            if (deal.status === 'draft_pending') {
+                actions.push({ label: 'Submit Draft', action: 'submit_draft', style: 'btn-primary' });
+            }
+            if (deal.status === 'draft_rejected') {
+                actions.push({ label: 'Resubmit Draft', action: 'submit_draft', style: 'btn-primary' });
+            }
+            if (deal.status === 'funded' || deal.status === 'draft_approved') {
                 actions.push({ label: 'Mark as Posted', action: 'posted', style: 'btn-primary' });
             }
         }
@@ -88,6 +135,9 @@ export default function Deals() {
         if (deal.userRole === 'advertiser') {
             if (deal.status === 'accepted') {
                 actions.push({ label: 'Fund Deal', action: 'fund', style: 'btn-success' });
+            }
+            if (deal.status === 'draft_submitted') {
+                actions.push({ label: 'Review Draft', action: 'review_draft', style: 'btn-primary' });
             }
             if (deal.status === 'posted') {
                 actions.push({ label: 'Confirm & Release', action: 'complete', style: 'btn-success' });
@@ -104,8 +154,9 @@ export default function Deals() {
         switch (status) {
             case 'completed': return 'badge-success';
             case 'pending': case 'accepted': return 'badge-warning';
-            case 'funded': case 'posting': case 'posted': return 'badge-info';
-            case 'disputed': return 'badge-error';
+            case 'funded': case 'posting': case 'posted': case 'draft_approved': return 'badge-info';
+            case 'disputed': case 'draft_rejected': return 'badge-error';
+            case 'draft_pending': case 'draft_submitted': return 'badge-primary';
             default: return 'badge-primary';
         }
     };
@@ -157,7 +208,7 @@ export default function Deals() {
                             <div key={deal.id} className="card">
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                                     <div>
-                                        <div style={{ fontWeight: 600, marginBottom: '4px' }}>{deal.listing_title}</div>
+                                        <div style={{ fontWeight: 600, marginBottom: '4px' }}>{deal.listing_title || deal.channel_title}</div>
                                         <div className="text-muted" style={{ fontSize: '13px' }}>
                                             {deal.channel_username ? `@${deal.channel_username}` : deal.channel_title}
                                         </div>
@@ -216,6 +267,51 @@ export default function Deals() {
                     </div>
                 )}
             </div>
+
+            {/* Draft Submission Modal */}
+            {showDraftModal && (
+                <div className="modal-overlay" onClick={() => setShowDraftModal(false)}>
+                    <div className="modal" onClick={(e) => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h2>Submit Draft</h2>
+                            <button className="modal-close" onClick={() => setShowDraftModal(false)}>×</button>
+                        </div>
+                        <div className="modal-body">
+                            <div className="form-group">
+                                <label>Ad Content *</label>
+                                <textarea
+                                    value={draftContent}
+                                    onChange={(e) => setDraftContent(e.target.value)}
+                                    placeholder="Enter the ad content that will be posted..."
+                                    rows={5}
+                                    style={{ width: '100%', resize: 'vertical' }}
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Media URL (optional)</label>
+                                <input
+                                    type="text"
+                                    value={draftMediaUrl}
+                                    onChange={(e) => setDraftMediaUrl(e.target.value)}
+                                    placeholder="https://example.com/image.jpg"
+                                />
+                            </div>
+                        </div>
+                        <div className="modal-footer">
+                            <button className="btn btn-secondary" onClick={() => setShowDraftModal(false)}>
+                                Cancel
+                            </button>
+                            <button
+                                className="btn btn-primary"
+                                onClick={handleSubmitDraft}
+                                disabled={submitting || !draftContent.trim()}
+                            >
+                                {submitting ? 'Submitting...' : 'Submit Draft'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
