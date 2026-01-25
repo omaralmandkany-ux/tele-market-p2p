@@ -149,10 +149,16 @@ router.post('/:id/accept', async (req: Request, res: Response) => {
             return res.status(400).json({ success: false, error: `Cannot accept deal in ${deal.status} status` });
         }
 
+        // First change status to accepted so fundEscrow can work
+        await dealHelpers.updateStatus(dealId, 'accepted');
+
         // AUTO-FUND: Deduct from advertiser and lock in escrow
-        const fundResult = await tonWallet.fundDeal(dealId);
-        if (!fundResult.success) {
-            return res.status(400).json({ success: false, error: fundResult.error || 'Advertiser has insufficient balance' });
+        try {
+            await tonWallet.fundEscrow(dealId, deal.advertiser_id);
+        } catch (fundError: any) {
+            // Revert to pending if funding fails
+            await dealHelpers.updateStatus(dealId, 'pending');
+            return res.status(400).json({ success: false, error: fundError.message || 'Advertiser has insufficient balance' });
         }
 
         // Calculate post time based on scheduled_time or default to 1 hour from now
@@ -162,7 +168,7 @@ router.post('/:id/accept', async (req: Request, res: Response) => {
             postTime = new Date(Date.now() + defaultDelay).toISOString();
         }
 
-        // Update deal status to funded and set schedule
+        // Update deal with schedule time
         await dealHelpers.updateStatus(dealId, 'funded', {
             scheduled_time: postTime,
         });
