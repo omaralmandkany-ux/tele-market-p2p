@@ -10,8 +10,16 @@ interface CreateDealModalProps {
 export default function CreateDealModal({ listing, onClose, onSuccess }: CreateDealModalProps) {
     const [adContent, setAdContent] = useState('');
     const [adMediaUrl, setAdMediaUrl] = useState('');
+    const [scheduledTime, setScheduledTime] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+
+    // Get minimum date-time (now + 1 hour)
+    const getMinDateTime = () => {
+        const now = new Date();
+        now.setHours(now.getHours() + 1);
+        return now.toISOString().slice(0, 16);
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -28,6 +36,7 @@ export default function CreateDealModal({ listing, onClose, onSuccess }: CreateD
             listing_id: listing.id,
             ad_content: adContent,
             ad_media_url: adMediaUrl || undefined,
+            scheduled_time: scheduledTime || undefined,
         });
 
         if (result.success) {
@@ -51,73 +60,74 @@ export default function CreateDealModal({ listing, onClose, onSuccess }: CreateD
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal" onClick={(e) => e.stopPropagation()}>
                 <div className="modal-header">
-                    <h2 className="modal-title">Book Ad Slot</h2>
+                    <h2 className="modal-title">📢 Book Ad</h2>
                     <button className="modal-close" onClick={onClose}>×</button>
                 </div>
 
                 <div className="modal-body">
-                    {/* Listing Preview */}
-                    <div className="card" style={{ marginBottom: '24px', background: 'var(--color-bg-tertiary)' }}>
-                        <div style={{ display: 'flex', gap: '16px' }}>
+                    {/* Channel Preview */}
+                    <div className="card" style={{ marginBottom: '20px', background: 'var(--color-bg-tertiary)', padding: '12px' }}>
+                        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                             <div
                                 style={{
-                                    width: '60px',
-                                    height: '60px',
-                                    borderRadius: '8px',
+                                    width: '50px',
+                                    height: '50px',
+                                    borderRadius: '50%',
                                     background: 'var(--color-accent-gradient)',
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    fontSize: '24px',
+                                    fontSize: '20px',
+                                    flexShrink: 0,
                                 }}
                             >
                                 {listing.channel_photo_url ? (
                                     <img
                                         src={listing.channel_photo_url}
                                         alt={listing.channel_title}
-                                        style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }}
+                                        style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
                                     />
                                 ) : (
                                     '📢'
                                 )}
                             </div>
-                            <div style={{ flex: 1 }}>
-                                <div style={{ fontWeight: 600 }}>{listing.title}</div>
-                                <div className="text-muted" style={{ fontSize: '13px' }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontWeight: 600, fontSize: '15px' }}>
                                     @{listing.channel_username || listing.channel_title}
                                 </div>
-                                <div className="text-muted" style={{ fontSize: '12px', marginTop: '4px' }}>
-                                    👥 {formatSubscribers(listing.channel_subscribers)} • ⏱️ {listing.duration_hours}h
+                                <div className="text-muted" style={{ fontSize: '12px' }}>
+                                    👥 {formatSubscribers(listing.channel_subscribers)} subscribers
                                 </div>
                             </div>
-                            <div>
+                            <div style={{ textAlign: 'right' }}>
                                 <span className="listing-price">${listing.price}</span>
+                                <div className="text-muted" style={{ fontSize: '11px' }}>{listing.duration_hours}h</div>
                             </div>
                         </div>
                     </div>
 
                     {error && (
-                        <div className="alert alert-error">{error}</div>
+                        <div className="alert alert-error" style={{ marginBottom: '16px' }}>{error}</div>
                     )}
 
                     <form onSubmit={handleSubmit}>
+                        {/* Ad Content */}
                         <div className="form-group">
-                            <label className="form-label">Ad Content *</label>
+                            <label className="form-label">📝 Ad Content *</label>
                             <textarea
                                 className="form-textarea"
-                                placeholder="Write your ad text here. This is what will be posted..."
+                                placeholder="Write your ad text here..."
                                 value={adContent}
                                 onChange={(e) => setAdContent(e.target.value)}
-                                rows={5}
+                                rows={4}
                                 required
+                                style={{ fontSize: '14px' }}
                             />
-                            <p className="text-muted" style={{ fontSize: '11px', marginTop: '4px' }}>
-                                Supports text, emojis, and links
-                            </p>
                         </div>
 
+                        {/* Media URL */}
                         <div className="form-group">
-                            <label className="form-label">Media URL (Optional)</label>
+                            <label className="form-label">🖼️ Media URL (Optional)</label>
                             <input
                                 type="url"
                                 className="form-input"
@@ -125,29 +135,47 @@ export default function CreateDealModal({ listing, onClose, onSuccess }: CreateD
                                 value={adMediaUrl}
                                 onChange={(e) => setAdMediaUrl(e.target.value)}
                             />
+                        </div>
+
+                        {/* Schedule Time */}
+                        <div className="form-group">
+                            <label className="form-label">⏰ Post Time (Optional)</label>
+                            <input
+                                type="datetime-local"
+                                className="form-input"
+                                value={scheduledTime}
+                                onChange={(e) => setScheduledTime(e.target.value)}
+                                min={getMinDateTime()}
+                            />
                             <p className="text-muted" style={{ fontSize: '11px', marginTop: '4px' }}>
-                                Link to image or video to include with post
+                                Leave empty for immediate posting after approval
                             </p>
                         </div>
 
-                        <div className="alert alert-info">
-                            <strong>How it works:</strong>
-                            <ol style={{ margin: '8px 0 0 16px', fontSize: '13px' }}>
-                                <li>Submit your request</li>
-                                <li>Channel owner reviews & accepts</li>
-                                <li>You deposit ${listing.price} to escrow</li>
-                                <li>Ad is posted - you verify</li>
-                                <li>Funds released to channel owner</li>
-                            </ol>
+                        {/* Simple Info */}
+                        <div style={{
+                            padding: '12px',
+                            background: 'var(--glass-bg)',
+                            borderRadius: '8px',
+                            marginBottom: '16px',
+                            fontSize: '13px'
+                        }}>
+                            <div style={{ color: 'var(--color-accent)', fontWeight: 600, marginBottom: '8px' }}>
+                                ✨ How it works:
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', color: 'var(--color-text-secondary)' }}>
+                                <span>1️⃣ You send this request</span>
+                                <span>2️⃣ Channel owner approves</span>
+                                <span>3️⃣ Ad gets posted automatically!</span>
+                            </div>
                         </div>
 
                         <button
                             type="submit"
                             className="btn btn-primary btn-block btn-lg"
-                            disabled={loading}
-                            style={{ marginTop: '16px' }}
+                            disabled={loading || !adContent.trim()}
                         >
-                            {loading ? 'Submitting...' : `Request for $${listing.price}`}
+                            {loading ? 'Sending...' : `🚀 Send Request • $${listing.price}`}
                         </button>
                     </form>
                 </div>
