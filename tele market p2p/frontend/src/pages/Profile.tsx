@@ -23,7 +23,7 @@ export default function Profile() {
 
             // Update user balance
             if (user) {
-                setUser({ ...user, balance: result.data.balance });
+                setUser({ ...user, balance: result.data.new_balance });
             }
             setDepositAmount('');
         } else {

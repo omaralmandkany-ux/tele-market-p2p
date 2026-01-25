@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { api, Campaign, CampaignApplication } from '../services/api';
-import { useUser } from '../hooks/useUser';
+import { api, Campaign } from '../services/api';
 
 const Campaigns: React.FC = () => {
-    const { user } = useUser();
     const [view, setView] = useState<'browse' | 'my'>('browse');
     const [campaigns, setCampaigns] = useState<Campaign[]>([]);
     const [myCampaigns, setMyCampaigns] = useState<Campaign[]>([]);

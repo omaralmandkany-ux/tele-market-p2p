@@ -6,7 +6,6 @@ import { useUser } from '../hooks/useUser';
 export default function Home() {
     const { user } = useUser();
     const [stats, setStats] = useState<UserStats | null>(null);
-    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const fetchStats = async () => {
@@ -14,7 +13,6 @@ export default function Home() {
             if (result.success && result.data) {
                 setStats(result.data);
             }
-            setLoading(false);
         };
         fetchStats();
     }, []);
@@ -42,12 +40,12 @@ export default function Home() {
                             <div className="stat-label">Channels</div>
                         </div>
                         <div className="stat-card">
-                            <div className="stat-value">{stats.asOwner.completed + stats.asAdvertiser.completed}</div>
+                            <div className="stat-value">{stats.completed_deals}</div>
                             <div className="stat-label">Completed Deals</div>
                         </div>
                         <div className="stat-card">
-                            <div className="stat-value">{stats.asOwner.active + stats.asAdvertiser.active}</div>
-                            <div className="stat-label">Active Deals</div>
+                            <div className="stat-value">{stats.deals_as_owner + stats.deals_as_advertiser}</div>
+                            <div className="stat-label">Total Deals</div>
                         </div>
                     </div>
                 )}

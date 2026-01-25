@@ -4,13 +4,21 @@ import { api, DealWithDetails, DealStatus } from '../services/api';
 const STATUS_LABELS: Record<DealStatus, string> = {
     pending: 'Pending Approval',
     accepted: 'Accepted - Awaiting Payment',
+    rejected: 'Rejected',
     funded: 'Funded - Post Ad',
+    draft_pending: 'Awaiting Draft',
+    draft_submitted: 'Draft Submitted',
+    draft_approved: 'Draft Approved',
+    draft_rejected: 'Draft Rejected',
+    scheduled: 'Scheduled',
     posting: 'Posting...',
     posted: 'Posted - Awaiting Confirmation',
+    verifying: 'Verifying...',
     completed: 'Completed ✅',
     disputed: 'Disputed ⚠️',
     cancelled: 'Cancelled',
     refunded: 'Refunded',
+    expired: 'Expired',
 };
 
 export default function Deals() {
@@ -44,7 +52,7 @@ export default function Deals() {
                 result = await api.fundDeal(dealId);
                 break;
             case 'posted':
-                result = await api.markAdPosted(dealId);
+                result = await api.triggerPost(dealId);
                 break;
             case 'complete':
                 result = await api.completeDeal(dealId);

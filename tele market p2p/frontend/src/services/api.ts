@@ -67,6 +67,12 @@ export const api = {
         request<Channel>(`/api/channels/${channelId}/refresh-stats`, { method: 'POST' }),
     deleteChannel: (id: number) =>
         request(`/api/channels/${id}`, { method: 'DELETE' }),
+    getChannelListings: (channelId: number) =>
+        request<Listing[]>(`/api/channels/${channelId}/listings`),
+    startVerification: (channelId: number) =>
+        request<{ verificationCode: string }>(`/api/channels/${channelId}/start-verification`, { method: 'POST' }),
+    confirmVerification: (channelId: number) =>
+        request<Channel>(`/api/channels/${channelId}/confirm-verification`, { method: 'POST' }),
 
     // Listings
     getListings: (params?: ListingsParams) => {
