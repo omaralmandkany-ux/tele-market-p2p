@@ -184,7 +184,7 @@ router.post('/quick-verify', async (req: Request, res: Response) => {
             }
 
             // Add as manager
-            await managerHelpers.add(channel.id, user.id, admin.user.id, admin.status === 'creator' ? 'owner' : 'admin', null);
+            await managerHelpers.add(channel.id, user.id, admin.user.id, admin.status === 'creator' ? 'owner' : 'admin', undefined);
         }
 
         const updatedChannel = await channelHelpers.getById(channel.id);
@@ -432,3 +432,4 @@ router.delete('/:id', async (req: Request, res: Response) => {
 });
 
 export default router;
+
