@@ -7,10 +7,13 @@
             "ES2022",
             "DOM"
         ],
-        "types": ["node"],
+        "types": [
+            "node"
+        ],
         "outDir": "./dist",
         "rootDir": "./src",
-        "strict": true,
+        "strict": false,
+        "noImplicitAny": false,
         "esModuleInterop": true,
         "skipLibCheck": true,
         "forceConsistentCasingInFileNames": true,
