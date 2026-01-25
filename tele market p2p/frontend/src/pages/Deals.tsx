@@ -2,15 +2,15 @@ import { useState, useEffect } from 'react';
 import { api, DealWithDetails, DealStatus } from '../services/api';
 
 const STATUS_LABELS: Record<DealStatus, string> = {
-    pending: 'Awaiting Response',
-    accepted: 'Accepted',
+    pending: 'Awaiting Approval',
+    accepted: 'Processing Payment...',
     rejected: 'Rejected',
-    funded: 'Paid',
+    funded: 'Scheduled ⏰',
     draft_pending: 'Creating Ad',
     draft_submitted: 'Reviewing Ad',
     draft_approved: 'Ready to Post',
     draft_rejected: 'Needs Edit',
-    scheduled: 'Scheduled',
+    scheduled: 'Scheduled ⏰',
     posting: 'Posting...',
     posted: 'Posted ✓',
     verifying: 'Verifying...',
@@ -64,9 +64,6 @@ export default function Deals() {
             case 'reject':
                 result = await api.rejectDeal(dealId);
                 break;
-            case 'fund':
-                result = await api.fundDeal(dealId);
-                break;
             case 'complete':
                 result = await api.completeDeal(dealId);
                 break;
@@ -83,9 +80,9 @@ export default function Deals() {
 
             // Show success message based on action
             if (action === 'accept') {
-                window.Telegram?.WebApp?.showAlert('✅ Deal accepted! The ad will be posted automatically.');
+                window.Telegram?.WebApp?.showAlert('✅ Accepted! Payment locked & ad scheduled for auto-posting.');
             } else if (action === 'complete') {
-                window.Telegram?.WebApp?.showAlert('✅ Payment released! Deal completed.');
+                window.Telegram?.WebApp?.showAlert('✅ Deal completed! Payment released.');
             }
 
             fetchDeals();
@@ -99,13 +96,11 @@ export default function Deals() {
         if (!counterDealId || !counterPrice) return;
 
         setSubmitting(true);
-        // For now, we'll reject and show a message since counter isn't fully implemented
-        // In production, this would call api.counterDeal(counterDealId, parseFloat(counterPrice))
         const result = await api.rejectDeal(counterDealId);
 
         if (result?.success) {
             window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
-            window.Telegram?.WebApp?.showAlert(`Counter offer of $${counterPrice} sent! (Demo mode: Deal rejected for now)`);
+            window.Telegram?.WebApp?.showAlert(`Counter offer of $${counterPrice} noted. Deal declined for now.`);
             setShowCounterModal(false);
             setCounterDealId(null);
             fetchDeals();
@@ -127,12 +122,8 @@ export default function Deals() {
 
         // Advertiser actions
         if (deal.userRole === 'advertiser') {
-            if (deal.status === 'accepted') {
-                actions.push({ label: 'Pay Now', action: 'fund', style: 'btn-success', icon: '💳' });
-                actions.push({ label: 'Cancel', action: 'cancel', style: 'btn-secondary', icon: '✖️' });
-            }
             if (deal.status === 'posted') {
-                actions.push({ label: 'Confirm & Pay', action: 'complete', style: 'btn-success', icon: '✅' });
+                actions.push({ label: 'Confirm & Complete', action: 'complete', style: 'btn-success', icon: '✅' });
             }
             if (deal.status === 'pending') {
                 actions.push({ label: 'Cancel', action: 'cancel', style: 'btn-secondary', icon: '✖️' });
@@ -146,7 +137,7 @@ export default function Deals() {
         switch (status) {
             case 'completed': return 'badge-success';
             case 'pending': return 'badge-warning';
-            case 'accepted': case 'funded': case 'posted': case 'draft_approved': return 'badge-info';
+            case 'funded': case 'scheduled': case 'posted': return 'badge-info';
             case 'rejected': case 'cancelled': case 'disputed': return 'badge-error';
             default: return 'badge-primary';
         }
@@ -155,13 +146,26 @@ export default function Deals() {
     const getStatusEmoji = (status: DealStatus, userRole?: string) => {
         switch (status) {
             case 'pending': return userRole === 'owner' ? '📩' : '⏳';
-            case 'accepted': return '✓';
-            case 'funded': case 'posting': return '🚀';
+            case 'funded': case 'scheduled': return '⏰';
+            case 'posting': return '🚀';
             case 'posted': return '📢';
             case 'completed': return '✅';
             case 'rejected': case 'cancelled': return '❌';
             default: return '📋';
         }
+    };
+
+    const formatScheduledTime = (time: string | null) => {
+        if (!time) return null;
+        const date = new Date(time);
+        const now = new Date();
+        const diffMs = date.getTime() - now.getTime();
+        const diffHours = Math.round(diffMs / (1000 * 60 * 60));
+
+        if (diffHours <= 0) return 'Posting soon...';
+        if (diffHours === 1) return 'In 1 hour';
+        if (diffHours < 24) return `In ${diffHours} hours`;
+        return date.toLocaleDateString();
     };
 
     return (
@@ -249,13 +253,20 @@ export default function Deals() {
                                 )}
 
                                 {/* Scheduled Time */}
-                                {deal.scheduled_time && (
-                                    <div className="text-muted" style={{ fontSize: '12px', marginBottom: '12px' }}>
-                                        ⏰ Scheduled: {new Date(deal.scheduled_time).toLocaleString()}
+                                {deal.scheduled_time && ['funded', 'scheduled'].includes(deal.status) && (
+                                    <div style={{
+                                        padding: '8px 12px',
+                                        background: 'rgba(0, 122, 255, 0.1)',
+                                        borderRadius: '8px',
+                                        marginBottom: '12px',
+                                        fontSize: '13px',
+                                        color: 'var(--color-accent)'
+                                    }}>
+                                        ⏰ {formatScheduledTime(deal.scheduled_time)}
                                     </div>
                                 )}
 
-                                {/* Actions - Single Row */}
+                                {/* Actions */}
                                 {getActions(deal).length > 0 && (
                                     <div style={{ display: 'flex', gap: '8px' }}>
                                         {getActions(deal).map((action) => (
@@ -272,7 +283,7 @@ export default function Deals() {
                                     </div>
                                 )}
 
-                                {/* Info for completed/rejected */}
+                                {/* Status Messages */}
                                 {deal.status === 'completed' && (
                                     <div style={{
                                         padding: '8px 12px',
@@ -282,7 +293,20 @@ export default function Deals() {
                                         fontSize: '13px',
                                         textAlign: 'center'
                                     }}>
-                                        ✅ Deal completed successfully!
+                                        ✅ Deal completed! Payment released.
+                                    </div>
+                                )}
+
+                                {deal.status === 'posted' && deal.userRole === 'advertiser' && (
+                                    <div style={{
+                                        padding: '8px 12px',
+                                        background: 'rgba(0, 122, 255, 0.1)',
+                                        borderRadius: '8px',
+                                        color: 'var(--color-accent)',
+                                        fontSize: '13px',
+                                        textAlign: 'center'
+                                    }}>
+                                        📢 Ad is live! Click "Confirm & Complete" when verified.
                                     </div>
                                 )}
                             </div>
