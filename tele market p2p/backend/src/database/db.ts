@@ -285,23 +285,23 @@ export async function initializeDatabase(): Promise<void> {
 // User Helpers
 // =============================================
 export const userHelpers = {
-  getByTelegramId(telegramId: number) {
+  getByTelegramId(telegramId: number): any {
     const stmt = getDb().prepare('SELECT * FROM users WHERE telegram_id = ?');
     return stmt.get(telegramId);
   },
 
-  getById(id: number) {
+  getById(id: number): any {
     const stmt = getDb().prepare('SELECT * FROM users WHERE id = ?');
     return stmt.get(id);
   },
 
-  create(telegramId: number, username: string | null, firstName: string | null, photoUrl: string | null) {
+  create(telegramId: number, username: string | null, firstName: string | null, photoUrl: string | null): number {
     const stmt = getDb().prepare('INSERT INTO users (telegram_id, username, first_name, photo_url) VALUES (?, ?, ?, ?)');
     const result = stmt.run(telegramId, username, firstName, photoUrl);
-    return result.lastInsertRowid;
+    return Number(result.lastInsertRowid);
   },
 
-  update(id: number, data: Record<string, any>) {
+  update(id: number, data: Record<string, any>): void {
     const sets: string[] = [];
     const values: any[] = [];
     Object.entries(data).forEach(([key, value]) => {
@@ -316,7 +316,7 @@ export const userHelpers = {
     stmt.run(...values);
   },
 
-  updateBalance(userId: number, amount: number) {
+  updateBalance(userId: number, amount: number): void {
     const stmt = getDb().prepare('UPDATE users SET balance = balance + ? WHERE id = ?');
     stmt.run(amount, userId);
   },
@@ -326,22 +326,22 @@ export const userHelpers = {
 // Channel Helpers
 // =============================================
 export const channelHelpers = {
-  getByOwner(ownerId: number) {
+  getByOwner(ownerId: number): any[] {
     const stmt = getDb().prepare('SELECT * FROM channels WHERE owner_id = ?');
-    return stmt.all(ownerId);
+    return stmt.all(ownerId) as any[];
   },
 
-  getById(id: number) {
+  getById(id: number): any {
     const stmt = getDb().prepare('SELECT * FROM channels WHERE id = ?');
     return stmt.get(id);
   },
 
-  getByUsername(username: string) {
+  getByUsername(username: string): any {
     const stmt = getDb().prepare('SELECT * FROM channels WHERE username = ?');
     return stmt.get(username);
   },
 
-  getVerified(limit = 50, offset = 0) {
+  getVerified(limit = 50, offset = 0): any[] {
     const stmt = getDb().prepare(`
             SELECT c.*, u.username as owner_username, u.first_name as owner_first_name 
             FROM channels c JOIN users u ON c.owner_id = u.id 
@@ -349,10 +349,10 @@ export const channelHelpers = {
             ORDER BY c.subscribers_count DESC 
             LIMIT ? OFFSET ?
         `);
-    return stmt.all(limit, offset);
+    return stmt.all(limit, offset) as any[];
   },
 
-  create(data: Record<string, any>) {
+  create(data: Record<string, any>): number {
     const stmt = getDb().prepare(`
             INSERT INTO channels (telegram_id, username, title, description, subscribers_count, owner_id, categories, photo_url) 
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -362,10 +362,10 @@ export const channelHelpers = {
       data.description || null, data.subscribers_count || null,
       data.owner_id, data.categories || null, data.photo_url || null
     );
-    return result.lastInsertRowid;
+    return Number(result.lastInsertRowid);
   },
 
-  update(id: number, data: Record<string, any>) {
+  update(id: number, data: Record<string, any>): void {
     const sets: string[] = [];
     const values: any[] = [];
     Object.entries(data).forEach(([key, value]) => {
@@ -380,7 +380,7 @@ export const channelHelpers = {
     stmt.run(...values);
   },
 
-  updateVerification(id: number, isVerified: boolean, verificationCode?: string) {
+  updateVerification(id: number, isVerified: boolean, verificationCode?: string): void {
     const stmt = getDb().prepare('UPDATE channels SET is_verified = ?, verification_code = ? WHERE id = ?');
     stmt.run(isVerified ? 1 : 0, verificationCode || null, id);
   },
@@ -390,16 +390,16 @@ export const channelHelpers = {
 // Channel Manager Helpers
 // =============================================
 export const managerHelpers = {
-  getByChannel(channelId: number) {
+  getByChannel(channelId: number): any[] {
     const stmt = getDb().prepare(`
             SELECT cm.*, u.username, u.first_name, u.photo_url 
             FROM channel_managers cm JOIN users u ON cm.user_id = u.id 
             WHERE cm.channel_id = ?
         `);
-    return stmt.all(channelId);
+    return stmt.all(channelId) as any[];
   },
 
-  add(channelId: number, userId: number, telegramId: number, role: string, permissions?: string) {
+  add(channelId: number, userId: number, telegramId: number, role: string, permissions?: string): void {
     const stmt = getDb().prepare(`
             INSERT OR REPLACE INTO channel_managers (channel_id, user_id, telegram_id, role, permissions) 
             VALUES (?, ?, ?, ?, ?)
@@ -407,17 +407,17 @@ export const managerHelpers = {
     stmt.run(channelId, userId, telegramId, role, permissions || null);
   },
 
-  remove(channelId: number, userId: number) {
+  remove(channelId: number, userId: number): void {
     const stmt = getDb().prepare('DELETE FROM channel_managers WHERE channel_id = ? AND user_id = ?');
     stmt.run(channelId, userId);
   },
 
-  isManager(channelId: number, userId: number) {
+  isManager(channelId: number, userId: number): boolean {
     const stmt = getDb().prepare('SELECT id FROM channel_managers WHERE channel_id = ? AND user_id = ?');
     return !!stmt.get(channelId, userId);
   },
 
-  hasPermission(channelId: number, userId: number, permission: string) {
+  hasPermission(channelId: number, userId: number, permission: string): boolean {
     const stmt = getDb().prepare('SELECT permissions FROM channel_managers WHERE channel_id = ? AND user_id = ?');
     const row = stmt.get(channelId, userId) as any;
     if (!row || !row.permissions) return false;
@@ -434,7 +434,7 @@ export const managerHelpers = {
 // Listing Helpers
 // =============================================
 export const listingHelpers = {
-  getActive(limit = 50, offset = 0, filters?: { minPrice?: number; maxPrice?: number; format?: string; minSubscribers?: number }) {
+  getActive(limit = 50, offset = 0, filters?: { minPrice?: number; maxPrice?: number; format?: string; minSubscribers?: number }): any[] {
     let query = `
             SELECT l.*, c.title as channel_title, c.username as channel_username, 
             c.subscribers_count as channel_subscribers, c.photo_url as channel_photo_url, 
@@ -453,10 +453,10 @@ export const listingHelpers = {
     params.push(limit, offset);
 
     const stmt = getDb().prepare(query);
-    return stmt.all(...params);
+    return stmt.all(...params) as any[];
   },
 
-  getById(id: number) {
+  getById(id: number): any {
     const stmt = getDb().prepare(`
             SELECT l.*, c.title as channel_title, c.username as channel_username, 
             c.subscribers_count as channel_subscribers, c.photo_url as channel_photo_url, 
@@ -466,12 +466,12 @@ export const listingHelpers = {
     return stmt.get(id);
   },
 
-  getByChannel(channelId: number) {
+  getByChannel(channelId: number): any[] {
     const stmt = getDb().prepare('SELECT * FROM listings WHERE channel_id = ?');
-    return stmt.all(channelId);
+    return stmt.all(channelId) as any[];
   },
 
-  create(data: Record<string, any>) {
+  create(data: Record<string, any>): number {
     const stmt = getDb().prepare(`
             INSERT INTO listings (channel_id, title, description, price, currency, duration_hours, format, format_details) 
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -480,10 +480,10 @@ export const listingHelpers = {
       data.channel_id, data.title, data.description || null, data.price,
       data.currency || 'TON', data.duration_hours || 24, data.format || 'post', data.format_details || null
     );
-    return result.lastInsertRowid;
+    return Number(result.lastInsertRowid);
   },
 
-  update(id: number, data: Record<string, any>) {
+  update(id: number, data: Record<string, any>): void {
     const sets: string[] = [];
     const values: any[] = [];
     Object.entries(data).forEach(([key, value]) => {
@@ -498,7 +498,7 @@ export const listingHelpers = {
     stmt.run(...values);
   },
 
-  delete(id: number) {
+  delete(id: number): void {
     const stmt = getDb().prepare('DELETE FROM listings WHERE id = ?');
     stmt.run(id);
   },
@@ -508,17 +508,17 @@ export const listingHelpers = {
 // Campaign Helpers
 // =============================================
 export const campaignHelpers = {
-  getActive(limit = 50, offset = 0) {
+  getActive(limit = 50, offset = 0): any[] {
     const stmt = getDb().prepare(`
             SELECT c.*, u.username as advertiser_username, u.first_name as advertiser_first_name,
             (SELECT COUNT(*) FROM campaign_applications ca WHERE ca.campaign_id = c.id) as application_count 
             FROM campaigns c JOIN users u ON c.advertiser_id = u.id 
             WHERE c.status = 'active' ORDER BY c.created_at DESC LIMIT ? OFFSET ?
         `);
-    return stmt.all(limit, offset);
+    return stmt.all(limit, offset) as any[];
   },
 
-  getById(id: number) {
+  getById(id: number): any {
     const stmt = getDb().prepare(`
             SELECT c.*, u.username as advertiser_username, u.first_name as advertiser_first_name 
             FROM campaigns c JOIN users u ON c.advertiser_id = u.id WHERE c.id = ?
@@ -526,12 +526,12 @@ export const campaignHelpers = {
     return stmt.get(id);
   },
 
-  getByAdvertiser(advertiserId: number) {
+  getByAdvertiser(advertiserId: number): any[] {
     const stmt = getDb().prepare('SELECT * FROM campaigns WHERE advertiser_id = ? ORDER BY created_at DESC');
-    return stmt.all(advertiserId);
+    return stmt.all(advertiserId) as any[];
   },
 
-  create(data: Record<string, any>) {
+  create(data: Record<string, any>): number {
     const stmt = getDb().prepare(`
             INSERT INTO campaigns (advertiser_id, title, description, budget_min, budget_max, 
             target_subscribers_min, target_subscribers_max, target_categories, target_languages, 
@@ -545,10 +545,10 @@ export const campaignHelpers = {
       data.target_categories || null, data.target_languages || null,
       data.preferred_format || 'any', data.start_date || null, data.end_date || null
     );
-    return result.lastInsertRowid;
+    return Number(result.lastInsertRowid);
   },
 
-  update(id: number, data: Record<string, any>) {
+  update(id: number, data: Record<string, any>): void {
     const sets: string[] = [];
     const values: any[] = [];
     Object.entries(data).forEach(([key, value]) => {
@@ -565,7 +565,7 @@ export const campaignHelpers = {
 // Campaign Application Helpers
 // =============================================
 export const applicationHelpers = {
-  getByCampaign(campaignId: number) {
+  getByCampaign(campaignId: number): any[] {
     const stmt = getDb().prepare(`
             SELECT ca.*, c.title as channel_title, c.username as channel_username, 
             c.subscribers_count as channel_subscribers, c.photo_url as channel_photo_url,
@@ -575,34 +575,34 @@ export const applicationHelpers = {
             JOIN users u ON ca.applicant_id = u.id 
             WHERE ca.campaign_id = ? ORDER BY ca.created_at DESC
         `);
-    return stmt.all(campaignId);
+    return stmt.all(campaignId) as any[];
   },
 
-  getByChannel(channelId: number) {
+  getByChannel(channelId: number): any[] {
     const stmt = getDb().prepare(`
             SELECT ca.*, camp.title as campaign_title, camp.description as campaign_description 
             FROM campaign_applications ca 
             JOIN campaigns camp ON ca.campaign_id = camp.id 
             WHERE ca.channel_id = ? ORDER BY ca.created_at DESC
         `);
-    return stmt.all(channelId);
+    return stmt.all(channelId) as any[];
   },
 
-  getById(id: number) {
+  getById(id: number): any {
     const stmt = getDb().prepare('SELECT * FROM campaign_applications WHERE id = ?');
     return stmt.get(id);
   },
 
-  create(data: Record<string, any>) {
+  create(data: Record<string, any>): number {
     const stmt = getDb().prepare(`
             INSERT INTO campaign_applications (campaign_id, channel_id, applicant_id, proposed_price, message) 
             VALUES (?, ?, ?, ?, ?)
         `);
     const result = stmt.run(data.campaign_id, data.channel_id, data.applicant_id, data.proposed_price, data.message || null);
-    return result.lastInsertRowid;
+    return Number(result.lastInsertRowid);
   },
 
-  updateStatus(id: number, status: string, responseMessage?: string) {
+  updateStatus(id: number, status: string, responseMessage?: string): void {
     const stmt = getDb().prepare('UPDATE campaign_applications SET status = ?, response_message = ?, responded_at = CURRENT_TIMESTAMP WHERE id = ?');
     stmt.run(status, responseMessage || null, id);
   },
@@ -612,7 +612,7 @@ export const applicationHelpers = {
 // Deal Helpers
 // =============================================
 export const dealHelpers = {
-  getByUser(userId: number, role: 'advertiser' | 'owner') {
+  getByUser(userId: number, role: 'advertiser' | 'owner'): any[] {
     const column = role === 'advertiser' ? 'advertiser_id' : 'channel_owner_id';
     const stmt = getDb().prepare(`
             SELECT d.*, l.title as listing_title, c.title as channel_title, c.username as channel_username, 
@@ -625,10 +625,10 @@ export const dealHelpers = {
             JOIN users own ON d.channel_owner_id = own.id 
             WHERE d.${column} = ? ORDER BY d.created_at DESC
         `);
-    return stmt.all(userId);
+    return stmt.all(userId) as any[];
   },
 
-  getById(id: number) {
+  getById(id: number): any {
     const stmt = getDb().prepare(`
             SELECT d.*, l.title as listing_title, c.title as channel_title, c.username as channel_username, 
             c.telegram_id as channel_telegram_id, adv.username as advertiser_username, adv.first_name as advertiser_first_name, 
@@ -643,7 +643,7 @@ export const dealHelpers = {
     return stmt.get(id);
   },
 
-  create(data: Record<string, any>) {
+  create(data: Record<string, any>): number {
     const stmt = getDb().prepare(`
             INSERT INTO deals (listing_id, campaign_id, application_id, advertiser_id, channel_owner_id, channel_id, 
             escrow_amount, ad_content, ad_media_url, ad_requirements, scheduled_time, expires_at) 
@@ -655,10 +655,10 @@ export const dealHelpers = {
       data.escrow_amount || null, data.ad_content || null, data.ad_media_url || null,
       data.ad_requirements || null, data.scheduled_time || null, data.expires_at || null
     );
-    return result.lastInsertRowid;
+    return Number(result.lastInsertRowid);
   },
 
-  updateStatus(id: number, status: string, additionalData?: Record<string, any>) {
+  updateStatus(id: number, status: string, additionalData?: Record<string, any>): void {
     const sets = ['status = ?', 'last_activity_at = CURRENT_TIMESTAMP'];
     const values: any[] = [status];
     if (additionalData) {
@@ -671,22 +671,22 @@ export const dealHelpers = {
     stmt.run(...values);
   },
 
-  getExpired() {
+  getExpired(): any[] {
     const stmt = getDb().prepare(`
             SELECT * FROM deals 
             WHERE status NOT IN ('completed', 'cancelled', 'refunded', 'expired') 
             AND expires_at IS NOT NULL AND expires_at < CURRENT_TIMESTAMP
         `);
-    return stmt.all();
+    return stmt.all() as any[];
   },
 
-  getStale(hoursInactive: number) {
+  getStale(hoursInactive: number): any[] {
     const stmt = getDb().prepare(`
             SELECT * FROM deals 
             WHERE status NOT IN ('completed', 'cancelled', 'refunded', 'expired', 'posted', 'verifying') 
             AND last_activity_at < datetime('now', '-' || ? || ' hours')
         `);
-    return stmt.all(hoursInactive);
+    return stmt.all(hoursInactive) as any[];
   },
 };
 
@@ -694,7 +694,7 @@ export const dealHelpers = {
 // Creative Draft Helpers
 // =============================================
 export const draftHelpers = {
-  getByDeal(dealId: number) {
+  getByDeal(dealId: number): any[] {
     const stmt = getDb().prepare(`
             SELECT cd.*, u.username as submitter_username, u.first_name as submitter_first_name,
             r.username as reviewer_username, r.first_name as reviewer_first_name 
@@ -703,15 +703,15 @@ export const draftHelpers = {
             LEFT JOIN users r ON cd.reviewed_by = r.id 
             WHERE cd.deal_id = ? ORDER BY cd.version DESC
         `);
-    return stmt.all(dealId);
+    return stmt.all(dealId) as any[];
   },
 
-  getLatest(dealId: number) {
+  getLatest(dealId: number): any {
     const stmt = getDb().prepare('SELECT * FROM creative_drafts WHERE deal_id = ? ORDER BY version DESC LIMIT 1');
     return stmt.get(dealId);
   },
 
-  create(data: Record<string, any>) {
+  create(data: Record<string, any>): number {
     // Get next version
     const versionStmt = getDb().prepare('SELECT COALESCE(MAX(version), 0) + 1 as next_version FROM creative_drafts WHERE deal_id = ?');
     const versionRow = versionStmt.get(data.deal_id) as any;
@@ -723,10 +723,10 @@ export const draftHelpers = {
 
     const stmt = getDb().prepare('INSERT INTO creative_drafts (deal_id, version, content, media_url, submitted_by) VALUES (?, ?, ?, ?, ?)');
     const result = stmt.run(data.deal_id, nextVersion, data.content, data.media_url || null, data.submitted_by);
-    return result.lastInsertRowid;
+    return Number(result.lastInsertRowid);
   },
 
-  review(id: number, approved: boolean, reviewerId: number, feedback?: string) {
+  review(id: number, approved: boolean, reviewerId: number, feedback?: string): void {
     const stmt = getDb().prepare('UPDATE creative_drafts SET status = ?, feedback = ?, reviewed_by = ?, reviewed_at = CURRENT_TIMESTAMP WHERE id = ?');
     stmt.run(approved ? 'approved' : 'rejected', feedback || null, reviewerId, id);
   },
@@ -736,41 +736,41 @@ export const draftHelpers = {
 // Wallet Helpers
 // =============================================
 export const walletHelpers = {
-  getByUser(userId: number) {
+  getByUser(userId: number): any {
     const stmt = getDb().prepare('SELECT * FROM wallets WHERE user_id = ? AND type = ?');
     return stmt.get(userId, 'main');
   },
 
-  createForUser(userId: number) {
+  createForUser(userId: number): { id: number; address: string } {
     const address = 'UQ' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
     const stmt = getDb().prepare('INSERT INTO wallets (user_id, address, type) VALUES (?, ?, ?)');
     const result = stmt.run(userId, address, 'main');
-    return { id: result.lastInsertRowid, address };
+    return { id: Number(result.lastInsertRowid), address };
   },
 
-  createEscrowWallet(dealId: number) {
+  createEscrowWallet(dealId: number): { id: number; address: string } {
     const address = 'EQ' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
     const stmt = getDb().prepare('INSERT INTO escrow_wallets (deal_id, address) VALUES (?, ?)');
     const result = stmt.run(dealId, address);
-    return { id: result.lastInsertRowid, address };
+    return { id: Number(result.lastInsertRowid), address };
   },
 
-  getEscrowWallet(dealId: number) {
+  getEscrowWallet(dealId: number): any {
     const stmt = getDb().prepare('SELECT * FROM escrow_wallets WHERE deal_id = ?');
     return stmt.get(dealId);
   },
 
-  fundEscrow(dealId: number, amount: number) {
+  fundEscrow(dealId: number, amount: number): void {
     const stmt = getDb().prepare('UPDATE escrow_wallets SET balance = ?, status = ?, funded_at = CURRENT_TIMESTAMP WHERE deal_id = ?');
     stmt.run(amount, 'funded', dealId);
   },
 
-  releaseEscrow(dealId: number) {
+  releaseEscrow(dealId: number): void {
     const stmt = getDb().prepare('UPDATE escrow_wallets SET balance = 0, status = ?, released_at = CURRENT_TIMESTAMP WHERE deal_id = ?');
     stmt.run('released', dealId);
   },
 
-  refundEscrow(dealId: number) {
+  refundEscrow(dealId: number): void {
     const stmt = getDb().prepare('UPDATE escrow_wallets SET balance = 0, status = ?, released_at = CURRENT_TIMESTAMP WHERE deal_id = ?');
     stmt.run('refunded', dealId);
   },
@@ -780,7 +780,7 @@ export const walletHelpers = {
 // Transaction Helpers
 // =============================================
 export const transactionHelpers = {
-  create(data: Record<string, any>) {
+  create(data: Record<string, any>): number {
     const stmt = getDb().prepare(`
             INSERT INTO transactions (deal_id, from_user_id, to_user_id, from_wallet_address, to_wallet_address, 
             amount, fee_amount, type, status, tx_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -790,17 +790,17 @@ export const transactionHelpers = {
       data.from_wallet_address || null, data.to_wallet_address || null,
       data.amount, data.fee_amount || 0, data.type, data.status || 'pending', data.tx_hash || null
     );
-    return result.lastInsertRowid;
+    return Number(result.lastInsertRowid);
   },
 
-  complete(id: number, txHash?: string) {
+  complete(id: number, txHash?: string): void {
     const stmt = getDb().prepare('UPDATE transactions SET status = ?, tx_hash = ?, completed_at = CURRENT_TIMESTAMP WHERE id = ?');
     stmt.run('completed', txHash || null, id);
   },
 
-  getByUser(userId: number, limit = 50) {
+  getByUser(userId: number, limit = 50): any[] {
     const stmt = getDb().prepare('SELECT * FROM transactions WHERE from_user_id = ? OR to_user_id = ? ORDER BY created_at DESC LIMIT ?');
-    return stmt.all(userId, userId, limit);
+    return stmt.all(userId, userId, limit) as any[];
   },
 };
 
@@ -808,18 +808,18 @@ export const transactionHelpers = {
 // Notification Helpers
 // =============================================
 export const notificationHelpers = {
-  create(data: Record<string, any>) {
+  create(data: Record<string, any>): number {
     const stmt = getDb().prepare('INSERT INTO notifications (user_id, type, title, message, data, bot_message_id) VALUES (?, ?, ?, ?, ?, ?)');
     const result = stmt.run(data.user_id, data.type, data.title, data.message || null, data.data || null, data.bot_message_id || null);
-    return result.lastInsertRowid;
+    return Number(result.lastInsertRowid);
   },
 
-  getUnread(userId: number) {
+  getUnread(userId: number): any[] {
     const stmt = getDb().prepare('SELECT * FROM notifications WHERE user_id = ? AND is_read = 0 ORDER BY created_at DESC');
-    return stmt.all(userId);
+    return stmt.all(userId) as any[];
   },
 
-  markRead(userId: number, ids?: number[]) {
+  markRead(userId: number, ids?: number[]): void {
     if (ids && ids.length > 0) {
       const placeholders = ids.map(() => '?').join(', ');
       const stmt = getDb().prepare(`UPDATE notifications SET is_read = 1 WHERE user_id = ? AND id IN (${placeholders})`);
@@ -835,13 +835,13 @@ export const notificationHelpers = {
 // Post Verification Helpers
 // =============================================
 export const verificationHelpers = {
-  create(data: Record<string, any>) {
+  create(data: Record<string, any>): number {
     const stmt = getDb().prepare('INSERT INTO post_verifications (deal_id, message_id, channel_telegram_id, content_hash) VALUES (?, ?, ?, ?)');
     const result = stmt.run(data.deal_id, data.message_id, data.channel_telegram_id, data.content_hash);
-    return result.lastInsertRowid;
+    return Number(result.lastInsertRowid);
   },
 
-  update(dealId: number, isPresent: boolean, isModified: boolean) {
+  update(dealId: number, isPresent: boolean, isModified: boolean): void {
     const stmt = getDb().prepare('UPDATE post_verifications SET is_present = ?, is_modified = ?, check_count = check_count + 1, last_check_at = CURRENT_TIMESTAMP WHERE deal_id = ?');
     stmt.run(isPresent ? 1 : 0, isModified ? 1 : 0, dealId);
     if (!isPresent) {
@@ -850,14 +850,14 @@ export const verificationHelpers = {
     }
   },
 
-  getPendingVerifications() {
+  getPendingVerifications(): any[] {
     const stmt = getDb().prepare(`
             SELECT pv.*, d.status as deal_status FROM post_verifications pv 
             JOIN deals d ON pv.deal_id = d.id 
             WHERE d.status IN ('posted', 'verifying') AND pv.is_present = 1 
             AND (pv.last_check_at IS NULL OR pv.last_check_at < datetime('now', '-30 minutes'))
         `);
-    return stmt.all();
+    return stmt.all() as any[];
   },
 };
 
@@ -865,28 +865,28 @@ export const verificationHelpers = {
 // Scheduled Task Helpers
 // =============================================
 export const taskHelpers = {
-  create(data: Record<string, any>) {
+  create(data: Record<string, any>): number {
     const stmt = getDb().prepare('INSERT INTO scheduled_tasks (type, target_id, target_type, scheduled_at) VALUES (?, ?, ?, ?)');
     const result = stmt.run(data.type, data.target_id, data.target_type, data.scheduled_at);
-    return result.lastInsertRowid;
+    return Number(result.lastInsertRowid);
   },
 
-  getPending() {
+  getPending(): any[] {
     const stmt = getDb().prepare("SELECT * FROM scheduled_tasks WHERE status = 'pending' AND scheduled_at <= CURRENT_TIMESTAMP ORDER BY scheduled_at ASC LIMIT 100");
-    return stmt.all();
+    return stmt.all() as any[];
   },
 
-  markProcessing(id: number) {
+  markProcessing(id: number): void {
     const stmt = getDb().prepare('UPDATE scheduled_tasks SET status = ? WHERE id = ?');
     stmt.run('processing', id);
   },
 
-  complete(id: number, result?: any) {
+  complete(id: number, result?: any): void {
     const stmt = getDb().prepare('UPDATE scheduled_tasks SET status = ?, result = ?, executed_at = CURRENT_TIMESTAMP WHERE id = ?');
     stmt.run('completed', result ? JSON.stringify(result) : null, id);
   },
 
-  fail(id: number, error: string) {
+  fail(id: number, error: string): void {
     const stmt = getDb().prepare('UPDATE scheduled_tasks SET status = ?, error = ?, retry_count = retry_count + 1, executed_at = CURRENT_TIMESTAMP WHERE id = ?');
     stmt.run('failed', error, id);
   },
@@ -895,7 +895,7 @@ export const taskHelpers = {
 // =============================================
 // General Query Helper
 // =============================================
-export function query(sql: string, params: any[] = []) {
+export function query(sql: string, params: any[] = []): any {
   const stmt = getDb().prepare(sql);
   if (sql.trim().toUpperCase().startsWith('SELECT')) {
     return stmt.all(...params);
