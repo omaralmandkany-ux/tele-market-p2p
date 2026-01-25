@@ -7,19 +7,19 @@ interface CreateDealModalProps {
     onSuccess: () => void;
 }
 
+const DURATION_OPTIONS = [
+    { value: '1', label: '⚡ 1 Hour', desc: 'Immediate' },
+    { value: '6', label: '🕐 6 Hours', desc: '' },
+    { value: '12', label: '🕛 12 Hours', desc: '' },
+    { value: '24', label: '📅 24 Hours', desc: '' },
+];
+
 export default function CreateDealModal({ listing, onClose, onSuccess }: CreateDealModalProps) {
     const [adContent, setAdContent] = useState('');
     const [adMediaUrl, setAdMediaUrl] = useState('');
-    const [scheduledTime, setScheduledTime] = useState('');
+    const [postDelay, setPostDelay] = useState('1'); // Hours from now
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
-
-    // Get minimum date-time (now + 1 hour)
-    const getMinDateTime = () => {
-        const now = new Date();
-        now.setHours(now.getHours() + 1);
-        return now.toISOString().slice(0, 16);
-    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -32,11 +32,15 @@ export default function CreateDealModal({ listing, onClose, onSuccess }: CreateD
         setLoading(true);
         setError('');
 
+        // Calculate scheduled time based on selected duration
+        const hoursDelay = parseInt(postDelay);
+        const scheduledTime = new Date(Date.now() + hoursDelay * 60 * 60 * 1000).toISOString();
+
         const result = await api.createDeal({
             listing_id: listing.id,
             ad_content: adContent,
             ad_media_url: adMediaUrl || undefined,
-            scheduled_time: scheduledTime || undefined,
+            scheduled_time: scheduledTime,
         });
 
         if (result.success) {
@@ -101,7 +105,6 @@ export default function CreateDealModal({ listing, onClose, onSuccess }: CreateD
                             </div>
                             <div style={{ textAlign: 'right' }}>
                                 <span className="listing-price">${listing.price}</span>
-                                <div className="text-muted" style={{ fontSize: '11px' }}>{listing.duration_hours}h</div>
                             </div>
                         </div>
                     </div>
@@ -137,22 +140,37 @@ export default function CreateDealModal({ listing, onClose, onSuccess }: CreateD
                             />
                         </div>
 
-                        {/* Schedule Time */}
+                        {/* Post Timing - Duration Options */}
                         <div className="form-group">
-                            <label className="form-label">⏰ Post Time (Optional)</label>
-                            <input
-                                type="datetime-local"
-                                className="form-input"
-                                value={scheduledTime}
-                                onChange={(e) => setScheduledTime(e.target.value)}
-                                min={getMinDateTime()}
-                            />
-                            <p className="text-muted" style={{ fontSize: '11px', marginTop: '4px' }}>
-                                Leave empty for immediate posting after approval
-                            </p>
+                            <label className="form-label">⏰ Post After Approval</label>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                {DURATION_OPTIONS.map((option) => (
+                                    <button
+                                        key={option.value}
+                                        type="button"
+                                        onClick={() => setPostDelay(option.value)}
+                                        style={{
+                                            padding: '12px',
+                                            border: postDelay === option.value
+                                                ? '2px solid var(--color-accent)'
+                                                : '1px solid var(--glass-border)',
+                                            borderRadius: '8px',
+                                            background: postDelay === option.value
+                                                ? 'rgba(0, 122, 255, 0.15)'
+                                                : 'var(--glass-bg)',
+                                            color: 'var(--color-text-primary)',
+                                            cursor: 'pointer',
+                                            textAlign: 'center',
+                                            fontSize: '14px',
+                                        }}
+                                    >
+                                        {option.label}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
 
-                        {/* Simple Info */}
+                        {/* Simple Process */}
                         <div style={{
                             padding: '12px',
                             background: 'var(--glass-bg)',
@@ -160,13 +178,11 @@ export default function CreateDealModal({ listing, onClose, onSuccess }: CreateD
                             marginBottom: '16px',
                             fontSize: '13px'
                         }}>
-                            <div style={{ color: 'var(--color-accent)', fontWeight: 600, marginBottom: '8px' }}>
-                                ✨ How it works:
+                            <div style={{ color: 'var(--color-success)', fontWeight: 600, marginBottom: '6px' }}>
+                                ✅ Simple Process:
                             </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', color: 'var(--color-text-secondary)' }}>
-                                <span>1️⃣ You send this request</span>
-                                <span>2️⃣ Channel owner approves</span>
-                                <span>3️⃣ Ad gets posted automatically!</span>
+                            <div style={{ color: 'var(--color-text-secondary)', lineHeight: '1.6' }}>
+                                When channel owner approves → <strong>Auto-payment</strong> → <strong>Auto-post!</strong>
                             </div>
                         </div>
 
