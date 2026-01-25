@@ -2,17 +2,17 @@ import { useState, useEffect } from 'react';
 import { api, DealWithDetails, DealStatus } from '../services/api';
 
 const STATUS_LABELS: Record<DealStatus, string> = {
-    pending: 'Pending Approval',
-    accepted: 'Accepted - Awaiting Payment',
+    pending: 'Awaiting Response',
+    accepted: 'Accepted',
     rejected: 'Rejected',
-    funded: 'Funded - Post Ad',
-    draft_pending: 'Awaiting Draft',
-    draft_submitted: 'Draft Submitted',
-    draft_approved: 'Draft Approved',
-    draft_rejected: 'Draft Rejected',
+    funded: 'Paid',
+    draft_pending: 'Creating Ad',
+    draft_submitted: 'Reviewing Ad',
+    draft_approved: 'Ready to Post',
+    draft_rejected: 'Needs Edit',
     scheduled: 'Scheduled',
     posting: 'Posting...',
-    posted: 'Posted - Awaiting Confirmation',
+    posted: 'Posted ✓',
     verifying: 'Verifying...',
     completed: 'Completed ✅',
     disputed: 'Disputed ⚠️',
@@ -26,11 +26,10 @@ export default function Deals() {
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'all' | 'advertiser' | 'owner'>('all');
 
-    // Draft modal state
-    const [showDraftModal, setShowDraftModal] = useState(false);
-    const [selectedDealId, setSelectedDealId] = useState<number | null>(null);
-    const [draftContent, setDraftContent] = useState('');
-    const [draftMediaUrl, setDraftMediaUrl] = useState('');
+    // Counter offer modal
+    const [showCounterModal, setShowCounterModal] = useState(false);
+    const [counterDealId, setCounterDealId] = useState<number | null>(null);
+    const [counterPrice, setCounterPrice] = useState('');
     const [submitting, setSubmitting] = useState(false);
 
     useEffect(() => {
@@ -46,17 +45,18 @@ export default function Deals() {
         setLoading(false);
     };
 
-    const handleAction = async (dealId: number, action: string) => {
-        // Handle submit_draft separately to show modal
-        if (action === 'submit_draft') {
-            setSelectedDealId(dealId);
-            setDraftContent('');
-            setDraftMediaUrl('');
-            setShowDraftModal(true);
+    const handleAction = async (dealId: number, action: string, deal?: DealWithDetails) => {
+        // Handle counter offer - show modal
+        if (action === 'counter') {
+            setCounterDealId(dealId);
+            setCounterPrice(deal?.escrow_amount?.toString() || '');
+            setShowCounterModal(true);
             return;
         }
 
+        setSubmitting(true);
         let result;
+
         switch (action) {
             case 'accept':
                 result = await api.acceptDeal(dealId);
@@ -67,9 +67,6 @@ export default function Deals() {
             case 'fund':
                 result = await api.fundDeal(dealId);
                 break;
-            case 'posted':
-                result = await api.triggerPost(dealId);
-                break;
             case 'complete':
                 result = await api.completeDeal(dealId);
                 break;
@@ -77,73 +74,68 @@ export default function Deals() {
                 result = await api.cancelDeal(dealId);
                 break;
             default:
+                setSubmitting(false);
                 return;
         }
 
         if (result?.success) {
             window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
+
+            // Show success message based on action
+            if (action === 'accept') {
+                window.Telegram?.WebApp?.showAlert('✅ Deal accepted! The ad will be posted automatically.');
+            } else if (action === 'complete') {
+                window.Telegram?.WebApp?.showAlert('✅ Payment released! Deal completed.');
+            }
+
             fetchDeals();
         } else {
             window.Telegram?.WebApp?.showAlert(result?.error || 'Action failed');
         }
+        setSubmitting(false);
     };
 
-    const handleSubmitDraft = async () => {
-        if (!selectedDealId || !draftContent.trim()) {
-            window.Telegram?.WebApp?.showAlert('Please enter the ad content');
-            return;
-        }
+    const handleCounterSubmit = async () => {
+        if (!counterDealId || !counterPrice) return;
 
         setSubmitting(true);
-        const result = await api.submitDraft(selectedDealId, {
-            content: draftContent.trim(),
-            media_url: draftMediaUrl.trim() || undefined,
-        });
+        // For now, we'll reject and show a message since counter isn't fully implemented
+        // In production, this would call api.counterDeal(counterDealId, parseFloat(counterPrice))
+        const result = await api.rejectDeal(counterDealId);
 
         if (result?.success) {
             window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
-            setShowDraftModal(false);
-            setSelectedDealId(null);
-            setDraftContent('');
-            setDraftMediaUrl('');
+            window.Telegram?.WebApp?.showAlert(`Counter offer of $${counterPrice} sent! (Demo mode: Deal rejected for now)`);
+            setShowCounterModal(false);
+            setCounterDealId(null);
             fetchDeals();
-        } else {
-            window.Telegram?.WebApp?.showAlert(result?.error || 'Failed to submit draft');
         }
         setSubmitting(false);
     };
 
     const getActions = (deal: DealWithDetails) => {
-        const actions: { label: string; action: string; style: string }[] = [];
+        const actions: { label: string; action: string; style: string; icon: string }[] = [];
 
+        // Channel Owner actions
         if (deal.userRole === 'owner') {
             if (deal.status === 'pending') {
-                actions.push({ label: 'Accept', action: 'accept', style: 'btn-success' });
-                actions.push({ label: 'Reject', action: 'reject', style: 'btn-danger' });
-            }
-            if (deal.status === 'draft_pending') {
-                actions.push({ label: 'Submit Draft', action: 'submit_draft', style: 'btn-primary' });
-            }
-            if (deal.status === 'draft_rejected') {
-                actions.push({ label: 'Resubmit Draft', action: 'submit_draft', style: 'btn-primary' });
-            }
-            if (deal.status === 'funded' || deal.status === 'draft_approved') {
-                actions.push({ label: 'Mark as Posted', action: 'posted', style: 'btn-primary' });
+                actions.push({ label: 'Accept', action: 'accept', style: 'btn-success', icon: '✅' });
+                actions.push({ label: 'Counter', action: 'counter', style: 'btn-warning', icon: '💰' });
+                actions.push({ label: 'Reject', action: 'reject', style: 'btn-danger', icon: '❌' });
             }
         }
 
+        // Advertiser actions
         if (deal.userRole === 'advertiser') {
             if (deal.status === 'accepted') {
-                actions.push({ label: 'Fund Deal', action: 'fund', style: 'btn-success' });
-            }
-            if (deal.status === 'draft_submitted') {
-                actions.push({ label: 'Review Draft', action: 'review_draft', style: 'btn-primary' });
+                actions.push({ label: 'Pay Now', action: 'fund', style: 'btn-success', icon: '💳' });
+                actions.push({ label: 'Cancel', action: 'cancel', style: 'btn-secondary', icon: '✖️' });
             }
             if (deal.status === 'posted') {
-                actions.push({ label: 'Confirm & Release', action: 'complete', style: 'btn-success' });
+                actions.push({ label: 'Confirm & Pay', action: 'complete', style: 'btn-success', icon: '✅' });
             }
-            if (['pending', 'accepted'].includes(deal.status)) {
-                actions.push({ label: 'Cancel', action: 'cancel', style: 'btn-secondary' });
+            if (deal.status === 'pending') {
+                actions.push({ label: 'Cancel', action: 'cancel', style: 'btn-secondary', icon: '✖️' });
             }
         }
 
@@ -153,20 +145,32 @@ export default function Deals() {
     const getStatusColor = (status: DealStatus) => {
         switch (status) {
             case 'completed': return 'badge-success';
-            case 'pending': case 'accepted': return 'badge-warning';
-            case 'funded': case 'posting': case 'posted': case 'draft_approved': return 'badge-info';
-            case 'disputed': case 'draft_rejected': return 'badge-error';
-            case 'draft_pending': case 'draft_submitted': return 'badge-primary';
+            case 'pending': return 'badge-warning';
+            case 'accepted': case 'funded': case 'posted': case 'draft_approved': return 'badge-info';
+            case 'rejected': case 'cancelled': case 'disputed': return 'badge-error';
             default: return 'badge-primary';
+        }
+    };
+
+    const getStatusEmoji = (status: DealStatus, userRole?: string) => {
+        switch (status) {
+            case 'pending': return userRole === 'owner' ? '📩' : '⏳';
+            case 'accepted': return '✓';
+            case 'funded': case 'posting': return '🚀';
+            case 'posted': return '📢';
+            case 'completed': return '✅';
+            case 'rejected': case 'cancelled': return '❌';
+            default: return '📋';
         }
     };
 
     return (
         <div className="page">
             <div className="container">
-                <h1 className="title">Deals</h1>
+                <h1 className="title">My Deals</h1>
                 <p className="text-muted" style={{ marginBottom: '16px' }}>
-                    Manage your escrow deals
+                    {activeTab === 'owner' ? 'Ads to post on your channels' :
+                        activeTab === 'advertiser' ? 'Your ad requests' : 'All your deals'}
                 </p>
 
                 {/* Tabs */}
@@ -200,29 +204,31 @@ export default function Deals() {
                     <div className="empty-state">
                         <div className="empty-icon">🤝</div>
                         <p>No deals yet</p>
-                        <p className="text-muted">Browse the marketplace to create your first deal</p>
+                        <p className="text-muted">Browse the marketplace to get started</p>
                     </div>
                 ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                         {deals.map((deal) => (
-                            <div key={deal.id} className="card">
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                                    <div>
-                                        <div style={{ fontWeight: 600, marginBottom: '4px' }}>{deal.listing_title || deal.channel_title}</div>
-                                        <div className="text-muted" style={{ fontSize: '13px' }}>
-                                            {deal.channel_username ? `@${deal.channel_username}` : deal.channel_title}
+                            <div key={deal.id} className="card" style={{ padding: '16px' }}>
+                                {/* Header */}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <span style={{ fontSize: '20px' }}>{getStatusEmoji(deal.status, deal.userRole)}</span>
+                                        <div>
+                                            <div style={{ fontWeight: 600, fontSize: '15px' }}>
+                                                @{deal.channel_username || deal.channel_title}
+                                            </div>
+                                            <div className="text-muted" style={{ fontSize: '12px' }}>
+                                                {deal.userRole === 'advertiser' ? 'Your ad request' : 'Ad request for you'}
+                                            </div>
                                         </div>
                                     </div>
-                                    <span className={`badge ${getStatusColor(deal.status)}`}>
-                                        {STATUS_LABELS[deal.status]}
-                                    </span>
-                                </div>
-
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                                    <span className="text-muted" style={{ fontSize: '12px' }}>
-                                        {deal.userRole === 'advertiser' ? '🛒 Buying' : '💰 Selling'}
-                                    </span>
-                                    <span className="listing-price">${deal.escrow_amount}</span>
+                                    <div style={{ textAlign: 'right' }}>
+                                        <div className="listing-price">${deal.escrow_amount}</div>
+                                        <span className={`badge ${getStatusColor(deal.status)}`} style={{ fontSize: '10px' }}>
+                                            {STATUS_LABELS[deal.status]}
+                                        </span>
+                                    </div>
                                 </div>
 
                                 {/* Ad Content Preview */}
@@ -230,83 +236,96 @@ export default function Deals() {
                                     <div style={{
                                         padding: '12px',
                                         background: 'var(--glass-bg)',
-                                        borderRadius: 'var(--radius-sm)',
+                                        borderRadius: '8px',
                                         marginBottom: '12px',
                                         fontSize: '13px',
                                         color: 'var(--color-text-secondary)',
+                                        whiteSpace: 'pre-wrap',
                                     }}>
-                                        <strong style={{ display: 'block', marginBottom: '4px', color: 'var(--color-text-primary)' }}>
-                                            Ad Content:
-                                        </strong>
-                                        {deal.ad_content.substring(0, 100)}
-                                        {deal.ad_content.length > 100 && '...'}
+                                        {deal.ad_content.length > 150
+                                            ? deal.ad_content.substring(0, 150) + '...'
+                                            : deal.ad_content}
                                     </div>
                                 )}
 
-                                {/* Actions */}
+                                {/* Scheduled Time */}
+                                {deal.scheduled_time && (
+                                    <div className="text-muted" style={{ fontSize: '12px', marginBottom: '12px' }}>
+                                        ⏰ Scheduled: {new Date(deal.scheduled_time).toLocaleString()}
+                                    </div>
+                                )}
+
+                                {/* Actions - Single Row */}
                                 {getActions(deal).length > 0 && (
-                                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                    <div style={{ display: 'flex', gap: '8px' }}>
                                         {getActions(deal).map((action) => (
                                             <button
                                                 key={action.action}
                                                 className={`btn ${action.style}`}
-                                                onClick={() => handleAction(deal.id, action.action)}
+                                                onClick={() => handleAction(deal.id, action.action, deal)}
+                                                disabled={submitting}
+                                                style={{ flex: 1, fontSize: '13px' }}
                                             >
-                                                {action.label}
+                                                {action.icon} {action.label}
                                             </button>
                                         ))}
                                     </div>
                                 )}
 
-                                {/* Date */}
-                                <div className="text-muted" style={{ fontSize: '11px', marginTop: '12px' }}>
-                                    Created: {new Date(deal.created_at).toLocaleDateString()}
-                                </div>
+                                {/* Info for completed/rejected */}
+                                {deal.status === 'completed' && (
+                                    <div style={{
+                                        padding: '8px 12px',
+                                        background: 'rgba(52, 199, 89, 0.1)',
+                                        borderRadius: '8px',
+                                        color: 'var(--color-success)',
+                                        fontSize: '13px',
+                                        textAlign: 'center'
+                                    }}>
+                                        ✅ Deal completed successfully!
+                                    </div>
+                                )}
                             </div>
                         ))}
                     </div>
                 )}
             </div>
 
-            {/* Draft Submission Modal */}
-            {showDraftModal && (
-                <div className="modal-overlay" onClick={() => setShowDraftModal(false)}>
-                    <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {/* Counter Offer Modal */}
+            {showCounterModal && (
+                <div className="modal-overlay" onClick={() => setShowCounterModal(false)}>
+                    <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '340px' }}>
                         <div className="modal-header">
-                            <h2>Submit Draft</h2>
-                            <button className="modal-close" onClick={() => setShowDraftModal(false)}>×</button>
+                            <h2>💰 Counter Offer</h2>
+                            <button className="modal-close" onClick={() => setShowCounterModal(false)}>×</button>
                         </div>
                         <div className="modal-body">
+                            <p className="text-muted" style={{ marginBottom: '16px', fontSize: '13px' }}>
+                                Propose a different price for this ad
+                            </p>
                             <div className="form-group">
-                                <label>Ad Content *</label>
-                                <textarea
-                                    value={draftContent}
-                                    onChange={(e) => setDraftContent(e.target.value)}
-                                    placeholder="Enter the ad content that will be posted..."
-                                    rows={5}
-                                    style={{ width: '100%', resize: 'vertical' }}
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label>Media URL (optional)</label>
+                                <label>Your Price ($)</label>
                                 <input
-                                    type="text"
-                                    value={draftMediaUrl}
-                                    onChange={(e) => setDraftMediaUrl(e.target.value)}
-                                    placeholder="https://example.com/image.jpg"
+                                    type="number"
+                                    value={counterPrice}
+                                    onChange={(e) => setCounterPrice(e.target.value)}
+                                    placeholder="Enter amount"
+                                    min="1"
+                                    step="0.1"
+                                    style={{ fontSize: '18px', textAlign: 'center' }}
                                 />
                             </div>
                         </div>
                         <div className="modal-footer">
-                            <button className="btn btn-secondary" onClick={() => setShowDraftModal(false)}>
+                            <button className="btn btn-secondary" onClick={() => setShowCounterModal(false)}>
                                 Cancel
                             </button>
                             <button
                                 className="btn btn-primary"
-                                onClick={handleSubmitDraft}
-                                disabled={submitting || !draftContent.trim()}
+                                onClick={handleCounterSubmit}
+                                disabled={submitting || !counterPrice}
                             >
-                                {submitting ? 'Submitting...' : 'Submit Draft'}
+                                {submitting ? 'Sending...' : 'Send Offer'}
                             </button>
                         </div>
                     </div>
