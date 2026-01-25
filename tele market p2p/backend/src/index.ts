@@ -19,7 +19,7 @@ const app = express();
 
 // Middleware
 app.use(cors({
-    origin: config.frontendUrl,
+    origin: config.frontendUrl === 'http://localhost:5173' ? true : config.frontendUrl,
     credentials: true,
 }));
 app.use(express.json());
@@ -115,3 +115,4 @@ async function main() {
 }
 
 main();
+
