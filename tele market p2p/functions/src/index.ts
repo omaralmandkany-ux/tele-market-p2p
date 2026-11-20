@@ -3,7 +3,7 @@ import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 
 // Import routes
-import usersRouter from "./routes/users";
+import usersRouter, { requireTelegramAuth } from "./routes/users";
 import channelsRouter from "./routes/channels";
 import listingsRouter from "./routes/listings";
 import dealsRouter from "./routes/deals";
@@ -23,10 +23,11 @@ app.get("/health", (_req: Request, res: Response) => {
 
 // Mount routes
 app.use("/api/users", usersRouter);
-app.use("/api/channels", channelsRouter);
-app.use("/api/listings", listingsRouter);
-app.use("/api/deals", dealsRouter);
-app.use("/api/campaigns", campaignsRouter);
+// SECURITY: these routers read req.user but had no auth middleware of their own
+app.use("/api/channels", requireTelegramAuth, channelsRouter);
+app.use("/api/listings", requireTelegramAuth, listingsRouter);
+app.use("/api/deals", requireTelegramAuth, dealsRouter);
+app.use("/api/campaigns", requireTelegramAuth, campaignsRouter);
 
 // 404 handler
 app.use((_req: Request, res: Response) => {

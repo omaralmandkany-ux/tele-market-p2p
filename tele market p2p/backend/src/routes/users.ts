@@ -80,6 +80,12 @@ router.get('/wallet', async (req: Request, res: Response) => {
 // =============================================
 router.post('/deposit', async (req: Request, res: Response) => {
     try {
+        // SECURITY: balances are simulated (no real TON is received or sent), so these
+        // endpoints let anyone mint balance. Only enable them for local testing.
+        if (process.env.ENABLE_SIMULATED_PAYMENTS !== 'true') {
+            return res.status(403).json({ success: false, error: 'Simulated payments are disabled' });
+        }
+
         if (!req.user) {
             return res.status(401).json({ success: false, error: 'Unauthorized' });
         }
@@ -111,6 +117,12 @@ router.post('/deposit', async (req: Request, res: Response) => {
 // =============================================
 router.post('/withdraw', async (req: Request, res: Response) => {
     try {
+        // SECURITY: balances are simulated (no real TON is received or sent), so these
+        // endpoints let anyone mint balance. Only enable them for local testing.
+        if (process.env.ENABLE_SIMULATED_PAYMENTS !== 'true') {
+            return res.status(403).json({ success: false, error: 'Simulated payments are disabled' });
+        }
+
         if (!req.user) {
             return res.status(401).json({ success: false, error: 'Unauthorized' });
         }

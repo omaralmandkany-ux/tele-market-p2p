@@ -220,11 +220,17 @@ router.post("/:id/cancel", async (req: Request, res: Response) => {
 
 // GET /api/deals/:id - Get deal details
 router.get("/:id", async (req: Request, res: Response) => {
+    const user = (req as unknown as { user: { id: string } }).user;
     const { id } = req.params;
     const deal = await getDoc<Deal>(collections.deals, id);
 
     if (!deal) {
         return res.status(404).json({ error: "Deal not found" });
+    }
+
+    // SECURITY: only the two parties may see a deal
+    if (deal.advertiserId !== user.id && deal.channelOwnerId !== user.id) {
+        return res.status(403).json({ error: "Not authorized" });
     }
 
     res.json(deal);

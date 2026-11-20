@@ -1,4 +1,4 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { collections, addDoc, getDoc, updateDoc, queryDocs } from "../firebase";
 import { validateInitData } from "../telegram";
 
@@ -14,8 +14,8 @@ interface User {
     createdAt: unknown;
 }
 
-// Auth middleware
-router.use(async (req: Request, res: Response, next) => {
+// Auth middleware (exported so index.ts can protect every /api router with it)
+export async function requireTelegramAuth(req: Request, res: Response, next: NextFunction) {
     const initData = req.headers["x-telegram-init-data"] as string;
     const result = validateInitData(initData);
 
@@ -40,8 +40,10 @@ router.use(async (req: Request, res: Response, next) => {
     }
 
     (req as unknown as { user: User }).user = user!;
-    next();
-});
+    return next();
+}
+
+router.use(requireTelegramAuth);
 
 // GET /api/users/me - Get current user profile
 router.get("/me", async (req: Request, res: Response) => {
@@ -87,6 +89,11 @@ router.get("/notifications", async (req: Request, res: Response) => {
 
 // POST /api/users/wallet/deposit - Deposit to wallet
 router.post("/wallet/deposit", async (req: Request, res: Response) => {
+    // SECURITY: no real TON is received/sent here, so this would let anyone mint
+    // balance. Only enable for local testing.
+    if (process.env.ENABLE_SIMULATED_PAYMENTS !== "true") {
+        return res.status(403).json({ error: "Simulated payments are disabled" });
+    }
     const user = (req as unknown as { user: User }).user;
     const { amount } = req.body;
 
@@ -110,6 +117,11 @@ router.post("/wallet/deposit", async (req: Request, res: Response) => {
 
 // POST /api/users/wallet/withdraw - Withdraw from wallet
 router.post("/wallet/withdraw", async (req: Request, res: Response) => {
+    // SECURITY: no real TON is received/sent here, so this would let anyone mint
+    // balance. Only enable for local testing.
+    if (process.env.ENABLE_SIMULATED_PAYMENTS !== "true") {
+        return res.status(403).json({ error: "Simulated payments are disabled" });
+    }
     const user = (req as unknown as { user: User }).user;
     const { amount, address } = req.body;
 
