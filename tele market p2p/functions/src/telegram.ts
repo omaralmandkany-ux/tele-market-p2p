@@ -34,8 +34,16 @@ export function validateInitData(initData: string): InitDataResult {
             };
         }
 
+        // SECURITY: without a bot token the HMAC key is public and anyone can forge initData
+        if (!BOT_TOKEN) {
+            return { valid: false, error: "BOT_TOKEN not configured" };
+        }
+
         const params = new URLSearchParams(initData);
         const hash = params.get("hash");
+        if (!hash || !/^[0-9a-f]{64}$/i.test(hash)) {
+            return { valid: false, error: "Invalid hash" };
+        }
         params.delete("hash");
 
         // Sort parameters
@@ -54,10 +62,19 @@ export function validateInitData(initData: string): InitDataResult {
         const calculatedHash = crypto
             .createHmac("sha256", secretKey)
             .update(dataCheckString)
-            .digest("hex");
+            .digest();
 
-        if (calculatedHash !== hash) {
+        const providedHash = Buffer.from(hash, "hex");
+        if (providedHash.length !== calculatedHash.length ||
+            !crypto.timingSafeEqual(providedHash, calculatedHash)) {
             return { valid: false, error: "Invalid hash" };
+        }
+
+        // Reject stale init data (replay protection, 24h)
+        const authDate = parseInt(params.get("auth_date") || "0", 10);
+        const now = Math.floor(Date.now() / 1000);
+        if (!authDate || now - authDate > 86400) {
+            return { valid: false, error: "Expired" };
         }
 
         // Parse user data

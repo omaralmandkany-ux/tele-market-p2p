@@ -19,8 +19,10 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
         const initData = req.headers['x-telegram-init-data'] as string;
 
         if (!initData) {
-            // Development mode: create test user
-            if (config.nodeEnv === 'development') {
+            // Development mode: create test user.
+            // SECURITY: only when NODE_ENV is *explicitly* 'development' (config.nodeEnv
+            // defaults to 'development' when unset, which would open this in production).
+            if (process.env.NODE_ENV === 'development') {
                 const testUser = await userHelpers.getByTelegramId(12345678);
                 if (testUser) {
                     req.user = testUser as User;
@@ -33,9 +35,18 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
             return res.status(401).json({ success: false, error: 'Unauthorized: No init data' });
         }
 
+        // SECURITY: without a bot token the HMAC key is public and anyone can forge initData
+        if (!config.botToken) {
+            console.error('BOT_TOKEN is not set - refusing to authenticate requests');
+            return res.status(500).json({ success: false, error: 'Server misconfigured' });
+        }
+
         // Parse and validate initData
         const urlParams = new URLSearchParams(initData);
         const hash = urlParams.get('hash');
+        if (!hash || !/^[0-9a-f]{64}$/i.test(hash)) {
+            return res.status(401).json({ success: false, error: 'Unauthorized: Invalid hash' });
+        }
         urlParams.delete('hash');
 
         // Sort and create data check string
@@ -55,16 +66,18 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
         const calculatedHash = crypto
             .createHmac('sha256', secretKey)
             .update(dataCheckString)
-            .digest('hex');
+            .digest();
 
-        if (calculatedHash !== hash) {
+        const providedHash = Buffer.from(hash, 'hex');
+        if (providedHash.length !== calculatedHash.length ||
+            !crypto.timingSafeEqual(providedHash, calculatedHash)) {
             return res.status(401).json({ success: false, error: 'Unauthorized: Invalid hash' });
         }
 
         // Check auth_date (allow 24 hours)
         const authDate = parseInt(urlParams.get('auth_date') || '0');
         const now = Math.floor(Date.now() / 1000);
-        if (now - authDate > 86400) {
+        if (!authDate || now - authDate > 86400) {
             return res.status(401).json({ success: false, error: 'Unauthorized: Expired' });
         }
 

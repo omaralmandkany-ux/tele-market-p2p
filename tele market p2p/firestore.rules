@@ -1,48 +1,12 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users can read/write their own data
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-      allow read: if true; // Allow public read for profiles
-    }
-    
-    // Channels are public readable
-    match /channels/{channelId} {
-      allow read: if true;
-      allow write: if request.auth != null;
-    }
-    
-    // Listings are public readable
-    match /listings/{listingId} {
-      allow read: if true;
-      allow write: if request.auth != null;
-    }
-    
-    // Deals require authentication
-    match /deals/{dealId} {
-      allow read, write: if request.auth != null;
-    }
-    
-    // Campaigns are public readable
-    match /campaigns/{campaignId} {
-      allow read: if true;
-      allow write: if request.auth != null;
-    }
-    
-    // Transactions are private
-    match /transactions/{transactionId} {
-      allow read, write: if request.auth != null;
-    }
-    
-    // Notifications are private
-    match /notifications/{notificationId} {
-      allow read, write: if request.auth != null;
-    }
-    
-    // Wallets are private
-    match /wallets/{walletId} {
-      allow read, write: if request.auth != null;
+    // SECURITY: clients never use Firestore directly - the API (Cloud Functions,
+    // Admin SDK) does all reads/writes and is not affected by these rules.
+    // The previous rules let any signed-in Firebase user edit their own balance,
+    // read/write every deal, wallet and transaction. Deny all direct access.
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
